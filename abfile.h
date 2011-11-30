@@ -25,11 +25,21 @@ class ABFile {
     FILE *mMetaFile;
     int flushBlocks();
     uint64_t mLength;
-    int mCounter;
+    uint64_t mCounter;
     int mFlags;//O_RDWRT etc.
     void persistLength(off_t offset);
 public:
     friend class FileManager;
+    bool reopen(int flags)
+    {
+        Lock l(mMutex);
+        mFlags=flags;
+        fclose(mMetaFile);
+      	std::string metafile=filename;
+	metafile+="/meta";
+
+	mMetaFile=fopen(metafile.c_str(),"r+b");
+    }
     void truncate(off_t size);
     int mRefCount;
     ABFile(cstr path):mLength(0),mCounter(0),mRefCount(0)

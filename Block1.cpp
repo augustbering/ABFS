@@ -13,12 +13,17 @@ extern byte compbuffer[];
 lzo_byte wrkmem[LZO1X_1_MEM_COMPRESS];
 int Block::write() {
 	lzo_uint outsize;
+
+#ifdef NOCOMP
+	fwrite(data, dataLen, 1, f);
+#else
 	byte *compbuffer=getBuffer();
 	lzo1x_1_compress(data, dataLen, compbuffer, &outsize, wrkmem);
 	FILE *f = mFile->getWriteBlockFile(mBlockNr);
-//	FILE *f = fopen(file, "wb");
 	fwrite(compbuffer, outsize, 1, f);
+
 	returnCompBuffer(compbuffer);
+#endif
 	fclose(f);
 	mDirty = false;
 
@@ -45,11 +50,16 @@ int Block::read() {
 	mFile->getBlockFile(mBlockNr, filename);
 	FILE *f = fopen(filename, "rb");
 	if (f) {
+#ifdef NOCOMP
+		int read = fread(data,1, BLOCKSIZE + 1000, f);
+#else
 		byte *compbuffer=getBuffer();
 		int read = fread(compbuffer,1, BLOCKSIZE + 1000, f);
-		fclose(f);
 		decompress(compbuffer, read);
 		returnCompBuffer(compbuffer);
+
+#endif
+		fclose(f);
 		mDirty = false;
 	} else
 		mDirty = true;

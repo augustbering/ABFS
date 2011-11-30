@@ -104,7 +104,7 @@ public:
             {///trying to open a read-only opened file, in write mode.... change it.
                if ((flags&3)==O_WRONLY ||(flags&3)==O_RDWR)
                {
-                   f->mFlags=O_RDWR;
+                   f->reopen(O_RDWR);
                }
             }
         }
