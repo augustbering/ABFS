@@ -4,20 +4,21 @@
  *  Created on: Oct 8, 2011
  *      Author: august
  */
-#include "Block1.h"
+#include "Block.h"
 #include "lzo/lzo1x.h"
 #include "abfs.h"
 #include "abfile.h"
 #include <stdio.h>
 extern byte compbuffer[];
-lzo_byte wrkmem[LZO1X_1_MEM_COMPRESS];
+
 int Block::write() {
 	lzo_uint outsize;
 
 #ifdef NOCOMP
 	fwrite(data, dataLen, 1, f);
 #else
-	byte *compbuffer=getBuffer();
+	lzo_byte wrkmem[LZO1X_1_MEM_COMPRESS];
+	byte *compbuffer = getCompBuffer();
 	lzo1x_1_compress(data, dataLen, compbuffer, &outsize, wrkmem);
 	FILE *f = mFile->getWriteBlockFile(mBlockNr);
 	fwrite(compbuffer, outsize, 1, f);
@@ -35,16 +36,16 @@ Block::~Block() {
 	delete[] data;
 }
 
-Block::Block(ABFile *file, int blocknr) :dataLen(0),
-		mBlockNr(blocknr), mFile(file), mLastUse(0), mDirty(true) {
+Block::Block(ABFile *file, int blocknr) :
+		mDirty(true), mBlockNr(blocknr), dataLen(0), mLastUse(0), mFile(file) {
 
 	data = new byte[BLOCKSIZE];
-	memset(data,0,BLOCKSIZE);
+	memset(data, 0, BLOCKSIZE);
 
 }
 
 int Block::read() {
-	if (dataLen)//already loaded
+	if (dataLen) //already loaded
 		return dataLen;
 	char filename[PATH_MAX];
 	mFile->getBlockFile(mBlockNr, filename);
@@ -53,8 +54,8 @@ int Block::read() {
 #ifdef NOCOMP
 		int read = fread(data,1, BLOCKSIZE + 1000, f);
 #else
-		byte *compbuffer=getBuffer();
-		int read = fread(compbuffer,1, BLOCKSIZE + 1000, f);
+		byte *compbuffer = getCompBuffer();
+		int read = fread(compbuffer, 1, BLOCKSIZE + 1000, f);
 		decompress(compbuffer, read);
 		returnCompBuffer(compbuffer);
 

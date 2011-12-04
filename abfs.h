@@ -11,8 +11,7 @@
 #include "rlog.h"
 #include <string>
 #include <boost/thread.hpp>
-const char *getpath(const char *path);
-byte *getBuffer();
+byte *getCompBuffer();
 void returnCompBuffer(byte *buf);
 typedef boost::lock_guard<boost::recursive_mutex> Lock;
 class ABFS
