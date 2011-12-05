@@ -313,7 +313,6 @@ static void test() {
 	//printf("b:%s",buf);
 }
 
-
 using namespace boost;
 
 int abfsMknod(const char *name, mode_t mode, dev_t rdev) {
@@ -351,8 +350,8 @@ static void *abfsInit(struct fuse_conn_info *conn) {
 	return 0;
 }
 
-int abfsSetxattr(const char *path, const char *name, const char *value, size_t size,
-		int flags) {
+int abfsSetxattr(const char *path, const char *name, const char *value,
+		size_t size, int flags) {
 
 	return 0;
 }
@@ -373,6 +372,21 @@ void abfsDestroy(void *) {
 
 }
 
+int abfsMkdir(const char *path, mode_t mode) {
+	int r = 0;
+	if (0 != mkdir(getpath(path), mode)) {
+		r = -errno;
+	}
+	return r;
+}
+int abfsRmdir(cstr path) {
+	path = getpath(path);
+
+	if (::rmdir(path) == -1)
+		return -errno;
+
+	return 0;
+}
 int main(int argc, char *argv[]) {
 	lzo_init();
 
@@ -394,6 +408,8 @@ int main(int argc, char *argv[]) {
 	abfs_oper.truncate = abfsTruncate;
 	abfs_oper.release = abfsRelease;
 	abfs_oper.destroy = abfsDestroy;
+	abfs_oper.mkdir = abfsMkdir;
+	abfs_oper.rmdir = abfsRmdir;
 
 	return fuse_main(argc, argv, &abfs_oper, NULL);
 
