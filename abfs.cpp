@@ -13,6 +13,15 @@
 #include "lzo/lzoconf.h"
 #include "lzo/lzo1x.h"
 #include <boost/filesystem.hpp>
+#include <boost/program_options.hpp>
+#include <boost/tokenizer.hpp>
+#include <boost/lexical_cast.hpp>
+
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <vector>
+#include <string>
 
 #include "Block.h"
 #include "abfile.h"
@@ -20,7 +29,7 @@
 rlog::RLog logger(0, LOG_INFO, true);
 rlog::RLog *g_RLog = &logger;
 
-cstr fsroot = 0;
+std::string fsroot, g_dirMount;
 
 static const char *getpath(const char *path) {
 	assert(path[0] != '\0');
@@ -340,7 +349,7 @@ int abfsUnlink(cstr file) {
 }
 
 static void *abfsInit(struct fuse_conn_info *conn) {
-	chdir(fsroot);
+	chdir(fsroot.c_str());
 
 	//add some compression working buffers.
 	for (int i = 0; i < NCOMPBUFFS; i++) {
@@ -387,12 +396,20 @@ int abfsRmdir(cstr path) {
 
 	return 0;
 }
+using namespace std;
+namespace po = boost::program_options;
+bool g_DebugMode;
+void print_help(const po::options_description &rDesc) {
+	cout << rDesc<<std::endl;
+	cout<<"Unrecocognized options are passed on to the fuse library.\n"
+			"E.g. -d (debug)\n";
+}
 int main(int argc, char *argv[]) {
 	lzo_init();
 
 	//    test();
 
-	fsroot = "/tmp/abfs";
+//	fsroot = "/tmp/abfs";
 	struct fuse_operations abfs_oper;
 	memset(&abfs_oper, 0, sizeof(abfs_oper));
 	abfs_oper.getattr = abfsGetattr;
@@ -411,6 +428,78 @@ int main(int argc, char *argv[]) {
 	abfs_oper.mkdir = abfsMkdir;
 	abfs_oper.rmdir = abfsRmdir;
 
-	return fuse_main(argc, argv, &abfs_oper, NULL);
+	boost::program_options::options_description desc(
+			"Usage: " "abfs" " [options] dir_lower dir_mount\n" "\nAllowed options");
+
+	string compressorName;
+	string commandLineOptions;
+
+	vector<string> fuseOptions;
+	fuseOptions.push_back(argv[0]);
+
+#define VERSION "0.1"
+	cout<<"ABFS Version " VERSION<<std::endl;
+
+	desc.add_options()("help,h", "print this help")("dir_lower", po::value<string>(&fsroot),
+			"storage directory")("dir_mount", po::value<string>(&g_dirMount),
+			"mount point")
+
+			;
+
+	po::positional_options_description pdesc;
+	pdesc.add("dir_lower", 1);
+	pdesc.add("dir_mount", 1);
+
+	po::variables_map vm;
+
+	try {
+		po::parsed_options parsed = po::command_line_parser(argc, argv).options(
+				desc).positional(pdesc).allow_unregistered().run();
+		po::store(parsed, vm);
+		po::notify(vm);
+
+		if (vm.count("help")) {
+			print_help(desc);
+			exit(EXIT_SUCCESS);
+		}
+		if (vm.count("dir_lower")) {
+			fsroot = vm["dir_lower"].as<string>();
+		} else {
+			print_help(desc);
+			exit(EXIT_FAILURE);
+		}
+
+		// Set up default options for fuse.
+		//
+		string mountdir = vm["dir_mount"].as<string>();
+		fuseOptions.push_back(mountdir);
+
+		DIR *dir;
+		if ((dir = opendir(fsroot.c_str())) == NULL) {
+			int errns = errno;
+
+			cerr << "Failed to open storage directory " << "'" << fsroot
+					<< "': " << strerror(errns) << endl;
+			exit(EXIT_FAILURE);
+		}
+
+		vector<string> to_pass_further = po::collect_unrecognized(
+				parsed.options, po::exclude_positional);
+
+		umask(0);
+
+		vector<cstr> fuseopts;
+		fuseopts.push_back(argv[0]);
+		for (int i = 0; i < to_pass_further.size(); i++) {
+			fuseopts.push_back(to_pass_further[i].c_str());
+			cout<<to_pass_further[i].c_str();
+		}
+		fuseopts.push_back(g_dirMount.c_str());
+		fuseopts.push_back("-s");
+		return fuse_main(fuseopts.size(), (char**)&fuseopts[0], &abfs_oper, NULL);
+	} catch (...) {
+		print_help( desc);
+		exit(EXIT_FAILURE);
+	}
 
 }
