@@ -10,7 +10,6 @@
 #include "abfile.h"
 #include <stdio.h>
 #include <limits.h>
-extern byte compbuffer[];
 
 int Block::write() {
 	lzo_uint outsize;

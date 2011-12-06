@@ -1,0 +1,5 @@
+
+There are a fair number of dependencies for abfs. On Ubuntu you can install them like
+this: 
+
+$ apt-get libboost-thread-dev libboost-filesystem-dev libboost-program-options-dev liblzo2-dev
