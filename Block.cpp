@@ -9,23 +9,33 @@
 #include "abfs.h"
 #include "abfile.h"
 #include <stdio.h>
+#include <limits.h>
 extern byte compbuffer[];
 
 int Block::write() {
 	lzo_uint outsize;
 
 #ifdef NOCOMP
-	fwrite(data, dataLen, 1, f);
+	size_t written=fwrite(data, dataLen, 1, f);
 #else
 	lzo_byte wrkmem[LZO1X_1_MEM_COMPRESS];
 	byte *compbuffer = getCompBuffer();
 	lzo1x_1_compress(data, dataLen, compbuffer, &outsize, wrkmem);
 	FILE *f = mFile->getWriteBlockFile(mBlockNr);
-	fwrite(compbuffer, outsize, 1, f);
-
+	size_t written=fwrite(compbuffer, outsize, 1, f);
 	returnCompBuffer(compbuffer);
+
 #endif
 	fclose(f);
+	if (1!=written)
+	{
+		DiskException d;
+		char filename[PATH_MAX];
+		mFile->getBlockFile(mBlockNr,filename);
+		d.filename=filename;
+		d.error="Can't write to file";
+		throw d;
+	}
 	mDirty = false;
 
 	return BLOCKSIZE;

@@ -47,7 +47,11 @@ Block *ABFile::getWriteBlock(off_t offset) {
 FILE *ABFile::getWriteBlockFile(int blocknr) {
 	char buf[PATH_MAX];
 	getBlockFile(blocknr, buf);
-	return fopen(buf, "wb");
+	FILE *f = fopen(buf, "wb");
+	if (!f) {
+		throw DiskException(buf, "Can't open file");
+	}
+	return f;
 }
 
 void ABFile::getBlockFile(int blocknr, char *filenameout) {
@@ -115,29 +119,34 @@ int ABFile::write(byte *buf, off_t offset, int len) {
 
 	Lock l(mMutex);
 	int written = 0;
-	while (len > 0) {
+	try {
 
-		Block *b = getWriteBlock(offset);
-		//can't get write block=?
-		int off = offset - BLOCKSTART(b);
-		int blen = std::min<int>(len, BLOCKSIZE - off);
-		if ((off == 0 && len > BLOCKSIZE) || offset >= mLength)
-			; //whole block is rewritten, no need to load
-		else
-			b->read();
+		while (len > 0) {
 
-		memcpy(b->data + off, buf, blen);
-		off_t dlen = off + blen;
-		if (dlen > b->dataLen)
-			b->dataLen = dlen;
+			Block *b = getWriteBlock(offset);
+			//can't get write block=?
+			int off = offset - BLOCKSTART(b);
+			int blen = std::min<int>(len, BLOCKSIZE - off);
+			if ((off == 0 && len > BLOCKSIZE) || offset >= mLength)
+				; //whole block is rewritten, no need to load
+			else
+				b->read();
 
-		b->mDirty = true;
-		buf += blen;
-		offset += blen;
-		len -= blen;
-		written += blen;
+			memcpy(b->data + off, buf, blen);
+			off_t dlen = off + blen;
+			if (dlen > b->dataLen)
+				b->dataLen = dlen;
+
+			b->mDirty = true;
+			buf += blen;
+			offset += blen;
+			len -= blen;
+			written += blen;
 
 //		releaseBlock(b);
+		}
+	} catch (DiskException e) {
+		e.print();
 	}
 	persistLength(offset);
 	return written;
@@ -146,8 +155,15 @@ int ABFile::write(byte *buf, off_t offset, int len) {
 int ABFile::read(byte *buf, off_t offset, int len) {
 	Lock l(mMutex);
 	int total = 0;
+
 	while (len > 0) {
-		Block *b = getWriteBlock(offset);
+		Block *b;
+		try {
+			b = getWriteBlock(offset);
+		} catch (DiskException e) {
+			e.print();
+			break;
+		}
 		int read = b->read();
 		if (offset + read < mLength) {
 			//might be the block is all zero and doesn't exist on disk.
@@ -167,6 +183,7 @@ int ABFile::read(byte *buf, off_t offset, int len) {
 		len -= blen;
 		total += blen;
 	}
+
 	return total;
 }
 
@@ -181,7 +198,7 @@ bool ABFile::create(cstr path, mode_t mode) {
 
 	mode = 0755; //for directory
 	std::string filename = path;
-	//if (mode & (O_RDWR | O_WRONLY))
+//if (mode & (O_RDWR | O_WRONLY))
 	{
 		if (0 != mkdir(filename.c_str(), 0777 & mode))
 			return -errno;
@@ -220,7 +237,7 @@ int ABFile::getattr(cstr path, struct stat *st, bool readsize /* = false */) {
 		return -ENOENT;
 	}
 
-	//else it's a dir
+//else it's a dir
 	r = lstat(path, st);
 	if (r != 0 || !S_ISDIR(st->st_mode))
 		return -errno;
@@ -236,8 +253,12 @@ void ABFile::close() {
 	for (; it != mBlocks.end(); it++) {
 
 		Block *b = it->second;
-		if (b->mDirty)
-			b->write();
+		try {
+			if (b->mDirty)
+				b->write();
+		} catch (DiskException d) {
+			d.print();
+		}
 		delete b;
 	}
 
