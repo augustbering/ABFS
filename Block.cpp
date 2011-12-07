@@ -10,6 +10,7 @@
 #include "abfile.h"
 #include <stdio.h>
 #include <limits.h>
+#include <string.h>
 
 int Block::write() {
 	lzo_uint outsize;
