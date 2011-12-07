@@ -347,9 +347,16 @@ int abfsUnlink(cstr file) {
 	boost::filesystem::remove_all(myfile);
 	return 0;
 }
-
+DIR *gDir;
 static void *abfsInit(struct fuse_conn_info *conn) {
-	chdir(fsroot.c_str());
+
+	if (fchdir(dirfd(gDir)) == -1) {
+		rError("Failed to change directory");
+		abort();
+	}
+	closedir(gDir);
+
+//	chdir(fsroot.c_str());
 
 	//add some compression working buffers.
 	for (int i = 0; i < NCOMPBUFFS; i++) {
@@ -480,8 +487,8 @@ int main(int argc, char *argv[]) {
 		string mountdir = vm["dir_mount"].as<string>();
 		fuseOptions.push_back(mountdir);
 
-		DIR *dir;
-		if ((dir = opendir(fsroot.c_str())) == NULL) {
+
+		if ((gDir = opendir(fsroot.c_str())) == NULL) {
 			int errns = errno;
 
 			cerr << "Failed to open storage directory " << "'" << fsroot
