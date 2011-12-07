@@ -9,7 +9,7 @@
 #define BLOCK1_H_
 #include <string>
 typedef unsigned char byte;
-#define BLOCKSIZE 8*1024*96
+#define BLOCKSIZE 2*1024*96 //Bigger size means better compression but slower.
 #define BLOCKNR(x) (int((x)/(BLOCKSIZE)))
 #define BLOCKSTART(block) (block->mBlockNr*BLOCKSIZE)
 #include <lzo/lzo1x.h>

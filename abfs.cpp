@@ -396,6 +396,11 @@ int abfsRmdir(cstr path) {
 
 	return 0;
 }
+
+int abfsRename(const char *f1, const char *f2) {
+	return rename(getpath(f1), getpath(f2));
+}
+
 using namespace std;
 namespace po = boost::program_options;
 bool g_DebugMode;
@@ -427,6 +432,7 @@ int main(int argc, char *argv[]) {
 	abfs_oper.destroy = abfsDestroy;
 	abfs_oper.mkdir = abfsMkdir;
 	abfs_oper.rmdir = abfsRmdir;
+	abfs_oper.rename = abfsRename;
 
 	boost::program_options::options_description desc(
 			"Usage: " "abfs" " [options] dir_lower dir_mount\n" "\nAllowed options");
